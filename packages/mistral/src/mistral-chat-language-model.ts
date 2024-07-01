@@ -7,6 +7,7 @@ import {
 } from '@ai-sdk/provider';
 import {
   ParseResult,
+  combineHeaders,
   createEventSourceResponseHandler,
   createJsonResponseHandler,
   postJsonToApi,
@@ -25,6 +26,7 @@ type MistralChatConfig = {
   baseURL: string;
   headers: () => Record<string, string | undefined>;
   generateId: () => string;
+  fetch?: typeof fetch;
 };
 
 export class MistralChatLanguageModel implements LanguageModelV1 {
@@ -87,7 +89,7 @@ export class MistralChatLanguageModel implements LanguageModelV1 {
 
       // standardized settings:
       max_tokens: maxTokens,
-      temperature, // uses 0..1 scale
+      temperature,
       top_p: topP,
       random_seed: seed,
 
@@ -97,21 +99,8 @@ export class MistralChatLanguageModel implements LanguageModelV1 {
 
     switch (type) {
       case 'regular': {
-        // when the tools array is empty, change it to undefined to prevent OpenAI errors:
-        const tools = mode.tools?.length ? mode.tools : undefined;
-
         return {
-          args: {
-            ...baseArgs,
-            tools: tools?.map(tool => ({
-              type: 'function',
-              function: {
-                name: tool.name,
-                description: tool.description,
-                parameters: tool.parameters,
-              },
-            })),
-          },
+          args: { ...baseArgs, ...prepareToolsAndToolChoice(mode) },
           warnings,
         };
       }
@@ -155,15 +144,16 @@ export class MistralChatLanguageModel implements LanguageModelV1 {
   ): Promise<Awaited<ReturnType<LanguageModelV1['doGenerate']>>> {
     const { args, warnings } = this.getArgs(options);
 
-    const response = await postJsonToApi({
+    const { responseHeaders, value: response } = await postJsonToApi({
       url: `${this.config.baseURL}/chat/completions`,
-      headers: this.config.headers(),
+      headers: combineHeaders(this.config.headers(), options.headers),
       body: args,
       failedResponseHandler: mistralFailedResponseHandler,
       successfulResponseHandler: createJsonResponseHandler(
         mistralChatResponseSchema,
       ),
       abortSignal: options.abortSignal,
+      fetch: this.config.fetch,
     });
 
     const { messages: rawPrompt, ...rawSettings } = args;
@@ -183,6 +173,7 @@ export class MistralChatLanguageModel implements LanguageModelV1 {
         completionTokens: response.usage.completion_tokens,
       },
       rawCall: { rawPrompt, rawSettings },
+      rawResponse: { headers: responseHeaders },
       warnings,
     };
   }
@@ -192,9 +183,9 @@ export class MistralChatLanguageModel implements LanguageModelV1 {
   ): Promise<Awaited<ReturnType<LanguageModelV1['doStream']>>> {
     const { args, warnings } = this.getArgs(options);
 
-    const response = await postJsonToApi({
+    const { responseHeaders, value: response } = await postJsonToApi({
       url: `${this.config.baseURL}/chat/completions`,
-      headers: this.config.headers(),
+      headers: combineHeaders(this.config.headers(), options.headers),
       body: {
         ...args,
         stream: true,
@@ -204,6 +195,7 @@ export class MistralChatLanguageModel implements LanguageModelV1 {
         mistralChatChunkSchema,
       ),
       abortSignal: options.abortSignal,
+      fetch: this.config.fetch,
     });
 
     const { messages: rawPrompt, ...rawSettings } = args;
@@ -287,6 +279,7 @@ export class MistralChatLanguageModel implements LanguageModelV1 {
         }),
       ),
       rawCall: { rawPrompt, rawSettings },
+      rawResponse: { headers: responseHeaders },
       warnings,
     };
   }
@@ -353,3 +346,55 @@ const mistralChatChunkSchema = z.object({
     .optional()
     .nullable(),
 });
+
+function prepareToolsAndToolChoice(
+  mode: Parameters<LanguageModelV1['doGenerate']>[0]['mode'] & {
+    type: 'regular';
+  },
+) {
+  // when the tools array is empty, change it to undefined to prevent errors:
+  const tools = mode.tools?.length ? mode.tools : undefined;
+
+  if (tools == null) {
+    return { tools: undefined, tool_choice: undefined };
+  }
+
+  const mappedTools = tools.map(tool => ({
+    type: 'function',
+    function: {
+      name: tool.name,
+      description: tool.description,
+      parameters: tool.parameters,
+    },
+  }));
+
+  const toolChoice = mode.toolChoice;
+
+  if (toolChoice == null) {
+    return { tools: mappedTools, tool_choice: undefined };
+  }
+
+  const type = toolChoice.type;
+
+  switch (type) {
+    case 'auto':
+    case 'none':
+      return { tools: mappedTools, tool_choice: type };
+    case 'required':
+      return { tools: mappedTools, tool_choice: 'any' };
+
+    // mistral does not support tool mode directly,
+    // so we filter the tools and force the tool choice through 'any'
+    case 'tool':
+      return {
+        tools: mappedTools.filter(
+          tool => tool.function.name === toolChoice.toolName,
+        ),
+        tool_choice: 'any',
+      };
+    default: {
+      const _exhaustiveCheck: never = type;
+      throw new Error(`Unsupported tool choice type: ${_exhaustiveCheck}`);
+    }
+  }
+}

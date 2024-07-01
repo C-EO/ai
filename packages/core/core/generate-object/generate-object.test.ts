@@ -1,7 +1,8 @@
+import { convertReadableStreamToArray } from '@ai-sdk/provider-utils/test';
 import assert from 'node:assert';
 import { z } from 'zod';
 import { MockLanguageModelV1 } from '../test/mock-language-model-v1';
-import { experimental_generateObject } from './generate-object';
+import { generateObject } from './generate-object';
 
 const dummyResponseValues = {
   rawCall: { rawPrompt: 'prompt', rawSettings: {} },
@@ -11,7 +12,7 @@ const dummyResponseValues = {
 
 describe('result.object', () => {
   it('should generate object with json mode', async () => {
-    const result = await experimental_generateObject({
+    const result = await generateObject({
       model: new MockLanguageModelV1({
         doGenerate: async ({ prompt, mode }) => {
           assert.deepStrictEqual(mode, { type: 'object-json' });
@@ -41,7 +42,7 @@ describe('result.object', () => {
   });
 
   it('should generate object with tool mode', async () => {
-    const result = await experimental_generateObject({
+    const result = await generateObject({
       model: new MockLanguageModelV1({
         doGenerate: async ({ prompt, mode }) => {
           assert.deepStrictEqual(mode, {
@@ -79,6 +80,64 @@ describe('result.object', () => {
       schema: z.object({ content: z.string() }),
       mode: 'tool',
       prompt: 'prompt',
+    });
+
+    assert.deepStrictEqual(result.object, { content: 'Hello, world!' });
+  });
+});
+
+describe('result.toJsonResponse', () => {
+  it('should return JSON response', async () => {
+    const result = await generateObject({
+      model: new MockLanguageModelV1({
+        doGenerate: async ({ prompt, mode }) => {
+          return {
+            ...dummyResponseValues,
+            text: `{ "content": "Hello, world!" }`,
+          };
+        },
+      }),
+      schema: z.object({ content: z.string() }),
+      mode: 'json',
+      prompt: 'prompt',
+    });
+
+    const response = result.toJsonResponse();
+
+    assert.strictEqual(response.status, 200);
+    assert.strictEqual(
+      response.headers.get('Content-Type'),
+      'application/json; charset=utf-8',
+    );
+
+    assert.deepStrictEqual(
+      await convertReadableStreamToArray(
+        response.body!.pipeThrough(new TextDecoderStream()),
+      ),
+      ['{"content":"Hello, world!"}'],
+    );
+  });
+});
+
+describe('options.headers', () => {
+  it('should set headers', async () => {
+    const result = await generateObject({
+      model: new MockLanguageModelV1({
+        doGenerate: async ({ headers }) => {
+          assert.deepStrictEqual(headers, {
+            'custom-request-header': 'request-header-value',
+          });
+
+          return {
+            ...dummyResponseValues,
+            text: `{ "content": "Hello, world!" }`,
+          };
+        },
+      }),
+      schema: z.object({ content: z.string() }),
+      mode: 'json',
+      prompt: 'prompt',
+      headers: { 'custom-request-header': 'request-header-value' },
     });
 
     assert.deepStrictEqual(result.object, { content: 'Hello, world!' });

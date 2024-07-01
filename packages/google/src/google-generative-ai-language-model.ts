@@ -7,6 +7,7 @@ import {
 } from '@ai-sdk/provider';
 import {
   ParseResult,
+  combineHeaders,
   createEventSourceResponseHandler,
   createJsonResponseHandler,
   postJsonToApi,
@@ -26,11 +27,12 @@ type GoogleGenerativeAIConfig = {
   baseURL: string;
   headers: () => Record<string, string | undefined>;
   generateId: () => string;
+  fetch?: typeof fetch;
 };
 
 export class GoogleGenerativeAILanguageModel implements LanguageModelV1 {
   readonly specificationVersion = 'v1';
-  readonly defaultObjectGenerationMode = undefined;
+  readonly defaultObjectGenerationMode = 'json';
 
   readonly modelId: GoogleGenerativeAIModelId;
   readonly settings: GoogleGenerativeAISettings;
@@ -51,7 +53,7 @@ export class GoogleGenerativeAILanguageModel implements LanguageModelV1 {
     return this.config.provider;
   }
 
-  private getArgs({
+  private async getArgs({
     mode,
     prompt,
     maxTokens,
@@ -86,45 +88,43 @@ export class GoogleGenerativeAILanguageModel implements LanguageModelV1 {
       });
     }
 
-    const baseArgs = {
-      generationConfig: {
-        // model specific settings:
-        topK: this.settings.topK,
+    const generationConfig = {
+      // model specific settings:
+      topK: this.settings.topK,
 
-        // standardized settings:
-        maxOutputTokens: maxTokens,
-        temperature,
-        topP,
-      },
-
-      // prompt:
-      contents: convertToGoogleGenerativeAIMessages(prompt),
+      // standardized settings:
+      maxOutputTokens: maxTokens,
+      temperature,
+      topP,
     };
+
+    const contents = await convertToGoogleGenerativeAIMessages({ prompt });
 
     switch (type) {
       case 'regular': {
-        const functionDeclarations = mode.tools?.map(tool => ({
-          name: tool.name,
-          description: tool.description ?? '',
-          parameters: prepareJsonSchema(tool.parameters),
-        }));
-
         return {
           args: {
-            ...baseArgs,
-            tools:
-              functionDeclarations == null
-                ? undefined
-                : { functionDeclarations },
+            generationConfig,
+            contents,
+            safetySettings: this.settings.safetySettings,
+            ...prepareToolsAndToolConfig(mode),
           },
           warnings,
         };
       }
 
       case 'object-json': {
-        throw new UnsupportedFunctionalityError({
-          functionality: 'object-json mode',
-        });
+        return {
+          args: {
+            generationConfig: {
+              ...generationConfig,
+              response_mime_type: 'application/json',
+            },
+            contents,
+            safetySettings: this.settings.safetySettings,
+          },
+          warnings,
+        };
       }
 
       case 'object-tool': {
@@ -149,15 +149,16 @@ export class GoogleGenerativeAILanguageModel implements LanguageModelV1 {
   async doGenerate(
     options: Parameters<LanguageModelV1['doGenerate']>[0],
   ): Promise<Awaited<ReturnType<LanguageModelV1['doGenerate']>>> {
-    const { args, warnings } = this.getArgs(options);
+    const { args, warnings } = await this.getArgs(options);
 
-    const response = await postJsonToApi({
+    const { responseHeaders, value: response } = await postJsonToApi({
       url: `${this.config.baseURL}/${this.modelId}:generateContent`,
-      headers: this.config.headers(),
+      headers: combineHeaders(this.config.headers(), options.headers),
       body: args,
       failedResponseHandler: googleFailedResponseHandler,
       successfulResponseHandler: createJsonResponseHandler(responseSchema),
       abortSignal: options.abortSignal,
+      fetch: this.config.fetch,
     });
 
     const { contents: rawPrompt, ...rawSettings } = args;
@@ -168,6 +169,8 @@ export class GoogleGenerativeAILanguageModel implements LanguageModelV1 {
       generateId: this.config.generateId,
     });
 
+    const usageMetadata = response.usageMetadata;
+
     return {
       text: getTextFromParts(candidate.content.parts),
       toolCalls,
@@ -176,10 +179,11 @@ export class GoogleGenerativeAILanguageModel implements LanguageModelV1 {
         hasToolCalls: toolCalls != null && toolCalls.length > 0,
       }),
       usage: {
-        promptTokens: NaN,
-        completionTokens: candidate.tokenCount ?? NaN,
+        promptTokens: usageMetadata?.promptTokenCount ?? NaN,
+        completionTokens: usageMetadata?.candidatesTokenCount ?? NaN,
       },
       rawCall: { rawPrompt, rawSettings },
+      rawResponse: { headers: responseHeaders },
       warnings,
     };
   }
@@ -187,15 +191,16 @@ export class GoogleGenerativeAILanguageModel implements LanguageModelV1 {
   async doStream(
     options: Parameters<LanguageModelV1['doStream']>[0],
   ): Promise<Awaited<ReturnType<LanguageModelV1['doStream']>>> {
-    const { args, warnings } = this.getArgs(options);
+    const { args, warnings } = await this.getArgs(options);
 
-    const response = await postJsonToApi({
+    const { responseHeaders, value: response } = await postJsonToApi({
       url: `${this.config.baseURL}/${this.modelId}:streamGenerateContent?alt=sse`,
-      headers: this.config.headers(),
+      headers: combineHeaders(this.config.headers(), options.headers),
       body: args,
       failedResponseHandler: googleFailedResponseHandler,
       successfulResponseHandler: createEventSourceResponseHandler(chunkSchema),
       abortSignal: options.abortSignal,
+      fetch: this.config.fetch,
     });
 
     const { contents: rawPrompt, ...rawSettings } = args;
@@ -232,10 +237,12 @@ export class GoogleGenerativeAILanguageModel implements LanguageModelV1 {
               });
             }
 
-            if (candidate.tokenCount != null) {
+            const usageMetadata = value.usageMetadata;
+
+            if (usageMetadata != null) {
               usage = {
-                promptTokens: NaN,
-                completionTokens: candidate.tokenCount,
+                promptTokens: usageMetadata.promptTokenCount ?? NaN,
+                completionTokens: usageMetadata.candidatesTokenCount ?? NaN,
               };
             }
 
@@ -287,33 +294,10 @@ export class GoogleGenerativeAILanguageModel implements LanguageModelV1 {
         }),
       ),
       rawCall: { rawPrompt, rawSettings },
+      rawResponse: { headers: responseHeaders },
       warnings,
     };
   }
-}
-
-// Removes all "additionalProperty" and "$schema" properties from the object (recursively)
-// (not supported by Google Generative AI)
-function prepareJsonSchema(jsonSchema: any): unknown {
-  if (typeof jsonSchema !== 'object') {
-    return jsonSchema;
-  }
-
-  if (Array.isArray(jsonSchema)) {
-    return jsonSchema.map(prepareJsonSchema);
-  }
-
-  const result: Record<string, any> = {};
-
-  for (const [key, value] of Object.entries(jsonSchema)) {
-    if (key === 'additionalProperties' || key === '$schema') {
-      continue;
-    }
-
-    result[key] = prepareJsonSchema(value);
-  }
-
-  return result;
 }
 
 function getToolCallsFromParts({
@@ -375,9 +359,15 @@ const responseSchema = z.object({
     z.object({
       content: contentSchema,
       finishReason: z.string().optional(),
-      tokenCount: z.number().optional(),
     }),
   ),
+  usageMetadata: z
+    .object({
+      promptTokenCount: z.number(),
+      candidatesTokenCount: z.number(),
+      totalTokenCount: z.number(),
+    })
+    .optional(),
 });
 
 // limited version of the schema, focussed on what is needed for the implementation
@@ -387,7 +377,98 @@ const chunkSchema = z.object({
     z.object({
       content: contentSchema.optional(),
       finishReason: z.string().optional(),
-      tokenCount: z.number().optional(),
     }),
   ),
+  usageMetadata: z
+    .object({
+      promptTokenCount: z.number(),
+      candidatesTokenCount: z.number(),
+      totalTokenCount: z.number(),
+    })
+    .optional(),
 });
+
+function prepareToolsAndToolConfig(
+  mode: Parameters<LanguageModelV1['doGenerate']>[0]['mode'] & {
+    type: 'regular';
+  },
+) {
+  // when the tools array is empty, change it to undefined to prevent errors:
+  const tools = mode.tools?.length ? mode.tools : undefined;
+
+  if (tools == null) {
+    return { tools: undefined, toolConfig: undefined };
+  }
+
+  const mappedTools = {
+    functionDeclarations: tools.map(tool => ({
+      name: tool.name,
+      description: tool.description ?? '',
+      parameters: prepareJsonSchema(tool.parameters),
+    })),
+  };
+
+  const toolChoice = mode.toolChoice;
+
+  if (toolChoice == null) {
+    return { tools: mappedTools, toolConfig: undefined };
+  }
+
+  const type = toolChoice.type;
+
+  switch (type) {
+    case 'auto':
+      return {
+        tools: mappedTools,
+        toolConfig: { functionCallingConfig: { mode: 'AUTO' } },
+      };
+    case 'none':
+      return {
+        tools: mappedTools,
+        toolConfig: { functionCallingConfig: { mode: 'NONE' } },
+      };
+    case 'required':
+      return {
+        tools: mappedTools,
+        toolConfig: { functionCallingConfig: { mode: 'ANY' } },
+      };
+    case 'tool':
+      return {
+        tools: mappedTools,
+        toolConfig: {
+          functionCallingConfig: {
+            mode: 'ANY',
+            allowedFunctionNames: [toolChoice.toolName],
+          },
+        },
+      };
+    default: {
+      const _exhaustiveCheck: never = type;
+      throw new Error(`Unsupported tool choice type: ${_exhaustiveCheck}`);
+    }
+  }
+}
+
+// Removes all "additionalProperty" and "$schema" properties from the object (recursively)
+// (not supported by Google Generative AI)
+function prepareJsonSchema(jsonSchema: any): unknown {
+  if (typeof jsonSchema !== 'object') {
+    return jsonSchema;
+  }
+
+  if (Array.isArray(jsonSchema)) {
+    return jsonSchema.map(prepareJsonSchema);
+  }
+
+  const result: Record<string, any> = {};
+
+  for (const [key, value] of Object.entries(jsonSchema)) {
+    if (key === 'additionalProperties' || key === '$schema') {
+      continue;
+    }
+
+    result[key] = prepareJsonSchema(value);
+  }
+
+  return result;
+}

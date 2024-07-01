@@ -1,5 +1,5 @@
-<script>
-	import { useChat } from 'ai/svelte'
+<script lang="ts">
+	import { useChat } from '@ai-sdk/svelte'
 
 	const { input, handleSubmit, messages } = useChat()
 </script>

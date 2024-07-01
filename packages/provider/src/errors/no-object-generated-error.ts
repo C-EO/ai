@@ -1,14 +1,19 @@
-export class NoTextGeneratedError extends Error {
+/**
+Thrown when the AI provider fails to generate a parsable object.
+ */
+export class NoObjectGeneratedError extends Error {
   readonly cause: unknown;
 
-  constructor() {
-    super(`No text generated.`);
+  constructor({ message = 'No object generated.' }: { message?: string } = {}) {
+    super(message);
 
-    this.name = 'AI_NoTextGeneratedError';
+    this.name = 'AI_NoObjectGeneratedError';
   }
 
-  static isNoTextGeneratedError(error: unknown): error is NoTextGeneratedError {
-    return error instanceof Error && error.name === 'AI_NoTextGeneratedError';
+  static isNoObjectGeneratedError(
+    error: unknown,
+  ): error is NoObjectGeneratedError {
+    return error instanceof Error && error.name === 'AI_NoObjectGeneratedError';
   }
 
   toJSON() {

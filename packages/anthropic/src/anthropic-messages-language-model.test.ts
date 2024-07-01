@@ -2,7 +2,7 @@ import { LanguageModelV1Prompt } from '@ai-sdk/provider';
 import {
   JsonTestServer,
   StreamingTestServer,
-  convertStreamToArray,
+  convertReadableStreamToArray,
 } from '@ai-sdk/provider-utils/test';
 import { AnthropicAssistantMessage } from './anthropic-messages-prompt';
 import { createAnthropic } from './anthropic-provider';
@@ -11,10 +11,7 @@ const TEST_PROMPT: LanguageModelV1Prompt = [
   { role: 'user', content: [{ type: 'text', text: 'Hello' }] },
 ];
 
-const provider = createAnthropic({
-  apiKey: 'test-api-key',
-});
-
+const provider = createAnthropic({ apiKey: 'test-api-key' });
 const model = provider.chat('claude-3-haiku-20240307');
 
 describe('doGenerate', () => {
@@ -181,6 +178,29 @@ describe('doGenerate', () => {
     });
   });
 
+  it('should expose the raw response headers', async () => {
+    prepareJsonResponse({});
+
+    server.responseHeaders = {
+      'test-header': 'test-value',
+    };
+
+    const { rawResponse } = await model.doGenerate({
+      inputFormat: 'prompt',
+      mode: { type: 'regular' },
+      prompt: TEST_PROMPT,
+    });
+
+    expect(rawResponse?.headers).toStrictEqual({
+      // default headers:
+      'content-length': '237',
+      'content-type': 'application/json',
+
+      // custom header
+      'test-header': 'test-value',
+    });
+  });
+
   it('should pass the model and the messages', async () => {
     prepareJsonResponse({});
 
@@ -197,13 +217,64 @@ describe('doGenerate', () => {
     });
   });
 
-  it('should pass custom headers', async () => {
+  it('should pass tools and toolChoice', async () => {
+    prepareJsonResponse({});
+
+    await model.doGenerate({
+      inputFormat: 'prompt',
+      mode: {
+        type: 'regular',
+        tools: [
+          {
+            type: 'function',
+            name: 'test-tool',
+            parameters: {
+              type: 'object',
+              properties: { value: { type: 'string' } },
+              required: ['value'],
+              additionalProperties: false,
+              $schema: 'http://json-schema.org/draft-07/schema#',
+            },
+          },
+        ],
+        toolChoice: {
+          type: 'tool',
+          toolName: 'test-tool',
+        },
+      },
+      prompt: TEST_PROMPT,
+    });
+
+    expect(await server.getRequestBodyJson()).toStrictEqual({
+      model: 'claude-3-haiku-20240307',
+      messages: [{ role: 'user', content: [{ type: 'text', text: 'Hello' }] }],
+      max_tokens: 4096,
+      tools: [
+        {
+          name: 'test-tool',
+          input_schema: {
+            type: 'object',
+            properties: { value: { type: 'string' } },
+            required: ['value'],
+            additionalProperties: false,
+            $schema: 'http://json-schema.org/draft-07/schema#',
+          },
+        },
+      ],
+      tool_choice: {
+        type: 'tool',
+        name: 'test-tool',
+      },
+    });
+  });
+
+  it('should pass headers', async () => {
     prepareJsonResponse({ content: [] });
 
     const provider = createAnthropic({
       apiKey: 'test-api-key',
       headers: {
-        'Custom-Header': 'test-header',
+        'Custom-Provider-Header': 'provider-header-value',
       },
     });
 
@@ -211,28 +282,20 @@ describe('doGenerate', () => {
       inputFormat: 'prompt',
       mode: { type: 'regular' },
       prompt: TEST_PROMPT,
+      headers: {
+        'Custom-Request-Header': 'request-header-value',
+      },
     });
 
     const requestHeaders = await server.getRequestHeaders();
-    expect(requestHeaders.get('Custom-Header')).toStrictEqual('test-header');
-  });
 
-  it('should pass the api key as Authorization header', async () => {
-    prepareJsonResponse({});
-
-    const provider = createAnthropic({
-      apiKey: 'test-api-key',
+    expect(requestHeaders).toStrictEqual({
+      'anthropic-version': '2023-06-01',
+      'content-type': 'application/json',
+      'custom-provider-header': 'provider-header-value',
+      'custom-request-header': 'request-header-value',
+      'x-api-key': 'test-api-key',
     });
-
-    await provider.chat('claude-3-haiku-20240307').doGenerate({
-      inputFormat: 'prompt',
-      mode: { type: 'regular' },
-      prompt: TEST_PROMPT,
-    });
-
-    expect((await server.getRequestHeaders()).get('x-api-key')).toStrictEqual(
-      'test-api-key',
-    );
   });
 });
 
@@ -267,7 +330,7 @@ describe('doStream', () => {
     });
 
     // note: space moved to last chunk bc of trimming
-    expect(await convertStreamToArray(stream)).toStrictEqual([
+    expect(await convertReadableStreamToArray(stream)).toStrictEqual([
       { type: 'text-delta', textDelta: 'Hello' },
       { type: 'text-delta', textDelta: ', ' },
       { type: 'text-delta', textDelta: 'World!' },
@@ -277,6 +340,137 @@ describe('doStream', () => {
         usage: { promptTokens: 17, completionTokens: 227 },
       },
     ]);
+  });
+
+  it('should stream tool deltas', async () => {
+    server.responseChunks = [
+      `data: {"type":"message_start","message":{"id":"msg_01GouTqNCGXzrj5LQ5jEkw67","type":"message","role":"assistant","model":"claude-3-haiku-20240307","stop_sequence":null,"usage":{"input_tokens":441,"output_tokens":2},"content":[],"stop_reason":null}            }\n\n`,
+      `data: {"type":"content_block_start","index":0,"content_block":{"type":"text","text":""}      }\n\n`,
+      `data: {"type": "ping"}\n\n`,
+      `data: {"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":"Okay"}    }\n\n`,
+      `data: {"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":"!"}   }\n\n`,
+      `data: {"type":"content_block_stop","index":0    }\n\n`,
+      `data: {"type":"content_block_start","index":1,"content_block":{"type":"tool_use","id":"toolu_01DBsB4vvYLnBDzZ5rBSxSLs","name":"test-tool","input":{}}      }\n\n`,
+      `data: {"type":"content_block_delta","index":1,"delta":{"type":"input_json_delta","partial_json":""}           }\n\n`,
+      `data: {"type":"content_block_delta","index":1,"delta":{"type":"input_json_delta","partial_json":"{\\"value"}              }\n\n`,
+      `data: {"type":"content_block_delta","index":1,"delta":{"type":"input_json_delta","partial_json":"\\":"}      }\n\n`,
+      `data: {"type":"content_block_delta","index":1,"delta":{"type":"input_json_delta","partial_json":"\\"Spark"}          }\n\n`,
+      `data: {"type":"content_block_delta","index":1,"delta":{"type":"input_json_delta","partial_json":"le"}          }\n\n`,
+      `data: {"type":"content_block_delta","index":1,"delta":{"type":"input_json_delta","partial_json":" Day\\"}"}               }\n\n`,
+      `data: {"type":"content_block_stop","index":1              }\n\n`,
+      `data: {"type":"message_delta","delta":{"stop_reason":"tool_use","stop_sequence":null},"usage":{"output_tokens":65}           }\n\n`,
+      `data: {"type":"message_stop"           }\n\n`,
+    ];
+
+    const { stream } = await model.doStream({
+      inputFormat: 'prompt',
+      mode: {
+        type: 'regular',
+        tools: [
+          {
+            type: 'function',
+            name: 'test-tool',
+            parameters: {
+              type: 'object',
+              properties: { value: { type: 'string' } },
+              required: ['value'],
+              additionalProperties: false,
+              $schema: 'http://json-schema.org/draft-07/schema#',
+            },
+          },
+        ],
+      },
+      prompt: TEST_PROMPT,
+    });
+
+    expect(await convertReadableStreamToArray(stream)).toStrictEqual([
+      {
+        type: 'text-delta',
+        textDelta: 'Okay',
+      },
+      {
+        type: 'text-delta',
+        textDelta: '!',
+      },
+      {
+        type: 'tool-call-delta',
+        toolCallId: 'toolu_01DBsB4vvYLnBDzZ5rBSxSLs',
+        toolCallType: 'function',
+        toolName: 'test-tool',
+        argsTextDelta: '',
+      },
+      {
+        type: 'tool-call-delta',
+        toolCallId: 'toolu_01DBsB4vvYLnBDzZ5rBSxSLs',
+        toolCallType: 'function',
+        toolName: 'test-tool',
+        argsTextDelta: '{"value',
+      },
+      {
+        type: 'tool-call-delta',
+        toolCallId: 'toolu_01DBsB4vvYLnBDzZ5rBSxSLs',
+        toolCallType: 'function',
+        toolName: 'test-tool',
+        argsTextDelta: '":',
+      },
+      {
+        type: 'tool-call-delta',
+        toolCallId: 'toolu_01DBsB4vvYLnBDzZ5rBSxSLs',
+        toolCallType: 'function',
+        toolName: 'test-tool',
+        argsTextDelta: '"Spark',
+      },
+      {
+        type: 'tool-call-delta',
+        toolCallId: 'toolu_01DBsB4vvYLnBDzZ5rBSxSLs',
+        toolCallType: 'function',
+        toolName: 'test-tool',
+        argsTextDelta: 'le',
+      },
+      {
+        type: 'tool-call-delta',
+        toolCallId: 'toolu_01DBsB4vvYLnBDzZ5rBSxSLs',
+        toolCallType: 'function',
+        toolName: 'test-tool',
+        argsTextDelta: ' Day"}',
+      },
+      {
+        type: 'tool-call',
+        toolCallId: 'toolu_01DBsB4vvYLnBDzZ5rBSxSLs',
+        toolCallType: 'function',
+        toolName: 'test-tool',
+        args: '{"value":"Sparkle Day"}',
+      },
+      {
+        type: 'finish',
+        finishReason: 'tool-calls',
+        usage: { promptTokens: 441, completionTokens: 65 },
+      },
+    ]);
+  });
+
+  it('should expose the raw response headers', async () => {
+    prepareStreamResponse({ content: [] });
+
+    server.responseHeaders = {
+      'test-header': 'test-value',
+    };
+
+    const { rawResponse } = await model.doStream({
+      inputFormat: 'prompt',
+      mode: { type: 'regular' },
+      prompt: TEST_PROMPT,
+    });
+
+    expect(rawResponse?.headers).toStrictEqual({
+      // default headers:
+      'content-type': 'text/event-stream',
+      'cache-control': 'no-cache',
+      connection: 'keep-alive',
+
+      // custom header
+      'test-header': 'test-value',
+    });
   });
 
   it('should pass the messages and the model', async () => {
@@ -296,13 +490,13 @@ describe('doStream', () => {
     });
   });
 
-  it('should pass custom headers', async () => {
+  it('should pass headers', async () => {
     prepareStreamResponse({ content: [] });
 
     const provider = createAnthropic({
       apiKey: 'test-api-key',
       headers: {
-        'Custom-Header': 'test-header',
+        'Custom-Provider-Header': 'provider-header-value',
       },
     });
 
@@ -310,27 +504,19 @@ describe('doStream', () => {
       inputFormat: 'prompt',
       mode: { type: 'regular' },
       prompt: TEST_PROMPT,
+      headers: {
+        'Custom-Request-Header': 'request-header-value',
+      },
     });
 
     const requestHeaders = await server.getRequestHeaders();
-    expect(requestHeaders.get('Custom-Header')).toStrictEqual('test-header');
-  });
 
-  it('should pass the api key as Authorization header', async () => {
-    prepareStreamResponse({ content: [] });
-
-    const provider = createAnthropic({
-      apiKey: 'test-api-key',
+    expect(requestHeaders).toStrictEqual({
+      'anthropic-version': '2023-06-01',
+      'content-type': 'application/json',
+      'custom-provider-header': 'provider-header-value',
+      'custom-request-header': 'request-header-value',
+      'x-api-key': 'test-api-key',
     });
-
-    await provider.chat('claude-3-haiku-2024').doStream({
-      inputFormat: 'prompt',
-      mode: { type: 'regular' },
-      prompt: TEST_PROMPT,
-    });
-
-    expect((await server.getRequestHeaders()).get('x-api-key')).toStrictEqual(
-      'test-api-key',
-    );
   });
 });

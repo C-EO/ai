@@ -1,7 +1,6 @@
 # Vercel AI SDK - Mistral Provider
 
-The Mistral provider contains language model support for the Mistral chat API.
-It creates language model objects that can be used with the `generateText`, `streamText`, `generateObject`, and `streamObject` AI functions.
+The **[Mistral provider](https://sdk.vercel.ai/providers/ai-sdk-providers/mistral)** for the [Vercel AI SDK](https://sdk.vercel.ai/docs) contains language model support for the Mistral chat API.
 
 ## Setup
 
@@ -13,46 +12,24 @@ npm i @ai-sdk/mistral
 
 ## Provider Instance
 
-You can import `createMistral` from `@ai-sdk/mistral` and create a provider instance with various settings:
-
-```ts
-import { createMistral } from '@ai-sdk/mistral';
-
-const mistral = createMistral({
-  // optional base URL for proxies etc.:
-  baseURL: '',
-
-  // optional API key, default to env property MISTRAL_API_KEY:
-  apiKey: '',
-
-  // optional custom headers:
-  headers: {
-    'custom-header': 'value',
-  },
-});
-```
-
-The AI SDK also provides a shorthand `mistral` import with a Mistral provider instance that uses defaults:
+You can import the default provider instance `mistral` from `@ai-sdk/mistral`:
 
 ```ts
 import { mistral } from '@ai-sdk/mistral';
 ```
 
-## Models
-
-You can create models that call the [Mistral chat API](https://docs.mistral.ai/api/#operation/createChatCompletion) using provider instance.
-The first argument is the model id, e.g. `mistral-large-latest`.
-Some Mistral chat models support tool calls.
+## Example
 
 ```ts
-const model = mistral('mistral-large-latest');
-```
+import { mistral } from '@ai-sdk/mistral';
+import { generateText } from 'ai';
 
-Mistral chat models also support additional model settings that are not part of the [standard call settings](/docs/ai-core/settings).
-You can pass them as an options argument:
-
-```ts
-const model = mistral('mistral-large-latest', {
-  safePrompt: true, // optional safety prompt injection
+const { text } = await generateText({
+  model: mistral('mistral-large-latest'),
+  prompt: 'Write a vegetarian lasagna recipe for 4 people.',
 });
 ```
+
+## Documentation
+
+Please check out the **[Mistral provider](https://sdk.vercel.ai/providers/ai-sdk-providers/mistral)** for more information.

@@ -4,6 +4,7 @@ import { SetupServer, setupServer } from 'msw/node';
 export class JsonTestServer {
   readonly server: SetupServer;
 
+  responseHeaders: Record<string, string> = {};
   responseBodyJson: any = {};
 
   request: Request | undefined;
@@ -15,7 +16,12 @@ export class JsonTestServer {
       http.post(url, ({ request }) => {
         this.request = request;
 
-        return HttpResponse.json(responseBodyJson());
+        return HttpResponse.json(responseBodyJson(), {
+          headers: {
+            'Content-Type': 'application/json',
+            ...this.responseHeaders,
+          },
+        });
       }),
     );
   }
@@ -27,7 +33,20 @@ export class JsonTestServer {
 
   async getRequestHeaders() {
     expect(this.request).toBeDefined();
-    return this.request!.headers;
+    const requestHeaders = this.request!.headers;
+
+    // convert headers to object for easier comparison
+    const headersObject: Record<string, string> = {};
+    requestHeaders.forEach((value, key) => {
+      headersObject[key] = value;
+    });
+
+    return headersObject;
+  }
+
+  async getRequestUrlSearchParams() {
+    expect(this.request).toBeDefined();
+    return new URL(this.request!.url).searchParams;
   }
 
   setupTestEnvironment() {

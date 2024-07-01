@@ -1,4 +1,4 @@
-import { Anthropic } from './anthropic-facade';
+import { loadApiKey, withoutTrailingSlash } from '@ai-sdk/provider-utils';
 import { AnthropicMessagesLanguageModel } from './anthropic-messages-language-model';
 import {
   AnthropicMessagesModelId,
@@ -6,11 +6,25 @@ import {
 } from './anthropic-messages-settings';
 
 export interface AnthropicProvider {
+  /**
+Creates a model for text generation.
+*/
   (
     modelId: AnthropicMessagesModelId,
     settings?: AnthropicMessagesSettings,
   ): AnthropicMessagesLanguageModel;
 
+  /**
+Creates a model for text generation.
+*/
+  languageModel(
+    modelId: AnthropicMessagesModelId,
+    settings?: AnthropicMessagesSettings,
+  ): AnthropicMessagesLanguageModel;
+
+  /**
+Creates a model for text generation.
+*/
   chat(
     modelId: AnthropicMessagesModelId,
     settings?: AnthropicMessagesSettings,
@@ -27,7 +41,8 @@ export interface AnthropicProvider {
 
 export interface AnthropicProviderSettings {
   /**
-Base URL for Anthropic API calls.
+Use a different URL prefix for API calls, e.g. to use proxy servers.
+The default prefix is `https://api.anthropic.com/v1`.
    */
   baseURL?: string;
 
@@ -37,7 +52,8 @@ Base URL for Anthropic API calls.
   baseUrl?: string;
 
   /**
-API key for authenticating requests.
+API key that is being send using the `x-api-key` header.
+It defaults to the `ANTHROPIC_API_KEY` environment variable.
    */
   apiKey?: string;
 
@@ -45,6 +61,12 @@ API key for authenticating requests.
 Custom headers to include in the requests.
      */
   headers?: Record<string, string>;
+
+  /**
+Custom fetch implementation. You can use it as a middleware to intercept requests,
+or to provide a custom fetch implementation for e.g. testing.
+    */
+  fetch?: typeof fetch;
 
   generateId?: () => string;
 }
@@ -55,7 +77,30 @@ Create an Anthropic provider instance.
 export function createAnthropic(
   options: AnthropicProviderSettings = {},
 ): AnthropicProvider {
-  const anthropic = new Anthropic(options);
+  const baseURL =
+    withoutTrailingSlash(options.baseURL ?? options.baseUrl) ??
+    'https://api.anthropic.com/v1';
+
+  const getHeaders = () => ({
+    'anthropic-version': '2023-06-01',
+    'x-api-key': loadApiKey({
+      apiKey: options.apiKey,
+      environmentVariableName: 'ANTHROPIC_API_KEY',
+      description: 'Anthropic',
+    }),
+    ...options.headers,
+  });
+
+  const createChatModel = (
+    modelId: AnthropicMessagesModelId,
+    settings: AnthropicMessagesSettings = {},
+  ) =>
+    new AnthropicMessagesLanguageModel(modelId, settings, {
+      provider: 'anthropic.messages',
+      baseURL,
+      headers: getHeaders,
+      fetch: options.fetch,
+    });
 
   const provider = function (
     modelId: AnthropicMessagesModelId,
@@ -67,11 +112,12 @@ export function createAnthropic(
       );
     }
 
-    return anthropic.chat(modelId, settings);
+    return createChatModel(modelId, settings);
   };
 
-  provider.chat = anthropic.chat.bind(anthropic);
-  provider.messages = anthropic.messages.bind(anthropic);
+  provider.languageModel = createChatModel;
+  provider.chat = createChatModel;
+  provider.messages = createChatModel;
 
   return provider as AnthropicProvider;
 }

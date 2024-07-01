@@ -1,9 +1,6 @@
 # Vercel AI SDK - Anthropic Provider
 
-**Note: The Anthropic API does not support streaming tool calls.**
-
-The Anthropic provider contains language model support for the [Anthropic Messages API](https://docs.anthropic.com/claude/reference/messages_post).
-It creates language model objects that can be used with the `generateText` and `streamText`AI functions.
+The **[Anthropic provider](https://sdk.vercel.ai/providers/ai-sdk-providers/anthropic)** for the [Vercel AI SDK](https://sdk.vercel.ai/docs) contains language model support for the [Anthropic Messages API](https://docs.anthropic.com/claude/reference/messages_post).
 
 ## Setup
 
@@ -15,46 +12,24 @@ npm i @ai-sdk/anthropic
 
 ## Provider Instance
 
-You can import `createAnthropic` from `@ai-sdk/anthropic` and create a provider instance with various settings:
-
-```ts
-import { createAnthropic } from '@ai-sdk/anthropic';
-
-const anthropic = createAnthropic({
-  // optional base URL for proxies etc.:
-  baseURL: '',
-
-  // optional API key, default to env property ANTHROPIC_API_KEY:
-  apiKey: '',
-
-  // optional custom headers:
-  headers: {
-    'custom-header': 'value',
-  },
-});
-```
-
-The AI SDK also provides a shorthand `anthropic` import with a Anthropic provider instance that uses defaults:
+You can import the default provider instance `anthropic` from `@ai-sdk/anthropic`:
 
 ```ts
 import { anthropic } from '@ai-sdk/anthropic';
 ```
 
-## Models
-
-You can create models that call the [Anthropic Messages API](https://docs.anthropic.com/claude/reference/messages_post) using the provider instance.
-The first argument is the model id, e.g. `claude-3-haiku-20240307`.
-Some models have multi-modal capabilities.
+## Example
 
 ```ts
-const model = anthropic('claude-3-haiku-20240307');
-```
+import { anthropic } from '@ai-sdk/anthropic';
+import { generateText } from 'ai';
 
-Anthropic Messages` models support also some model specific settings that are not part of the [standard call settings](/docs/ai-core/settings).
-You can pass them as an options argument:
-
-```ts
-const model = anthropic('claude-3-haiku-20240307', {
-  topK: 0.2,
+const { text } = await generateText({
+  model: anthropic('claude-3-haiku-20240307'),
+  prompt: 'Write a vegetarian lasagna recipe for 4 people.',
 });
 ```
+
+## Documentation
+
+Please check out the **[Anthropic provider documentation](https://sdk.vercel.ai/providers/ai-sdk-providers/anthropic)** for more information.

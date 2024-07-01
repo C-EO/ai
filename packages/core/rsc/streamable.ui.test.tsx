@@ -3,7 +3,11 @@ import {
   openaiFunctionCallChunks,
 } from '../tests/snapshots/openai-chat';
 import { DEFAULT_TEST_URL, createMockServer } from '../tests/utils/mock-server';
-import { createStreamableUI, render } from './streamable';
+import {
+  createStreamableUI,
+  createStreamableValue,
+  render,
+} from './streamable';
 import { z } from 'zod';
 
 const FUNCTION_CALL_TEST_URL = DEFAULT_TEST_URL + 'mock-func-call';
@@ -99,7 +103,7 @@ async function recursiveResolve(val: any): Promise<any> {
   return val;
 }
 
-async function simulateFlightServerRender(node: React.ReactElement) {
+async function simulateFlightServerRender(node: React.ReactNode) {
   async function traverse(node: any): Promise<any> {
     if (!node) return {};
 
@@ -314,7 +318,8 @@ describe('rsc - createStreamableUI()', () => {
     ui.append(<div>2</div>);
     ui.append(<div>3</div>);
 
-    const currentRsolved = ui.value.props.children.props.n;
+    const currentRsolved = (ui.value as React.ReactElement).props.children.props
+      .n;
     const tryResolve1 = await Promise.race([currentRsolved, nextTick()]);
     expect(tryResolve1).toBeDefined();
     const tryResolve2 = await Promise.race([tryResolve1.next, nextTick()]);
@@ -394,16 +399,16 @@ describe('rsc - createStreamableUI()', () => {
     ui.done();
 
     expect(await flightRender(ui.value)).toMatchInlineSnapshot(`
-      "1:\\"$Sreact.suspense\\"
-      2:D{\\"name\\":\\"\\",\\"env\\":\\"Server\\"}
-      0:[\\"$\\",\\"$1\\",null,{\\"fallback\\":\\"hello\\",\\"children\\":\\"$L2\\"}]
-      3:D{\\"name\\":\\"\\",\\"env\\":\\"Server\\"}
-      2:[\\"hello\\",[\\"$\\",\\"$1\\",null,{\\"fallback\\":\\" world\\",\\"children\\":\\"$L3\\"}]]
-      4:D{\\"name\\":\\"\\",\\"env\\":\\"Server\\"}
-      3:[\\" world\\",[\\"$\\",\\"$1\\",null,{\\"fallback\\":\\" and\\",\\"children\\":\\"$L4\\"}]]
-      5:D{\\"name\\":\\"\\",\\"env\\":\\"Server\\"}
-      4:[\\" and\\",[\\"$\\",\\"$1\\",null,{\\"fallback\\":\\" universe\\",\\"children\\":\\"$L5\\"}]]
-      5:\\" universe\\"
+      "1:"$Sreact.suspense"
+      2:D{"name":"","env":"Server"}
+      0:["$","$1",null,{"fallback":"hello","children":"$L2"}]
+      3:D{"name":"","env":"Server"}
+      2:["hello",["$","$1",null,{"fallback":" world","children":"$L3"}]]
+      4:D{"name":"","env":"Server"}
+      3:[" world",["$","$1",null,{"fallback":" and","children":"$L4"}]]
+      5:D{"name":"","env":"Server"}
+      4:[" and",["$","$1",null,{"fallback":" universe","children":"$L5"}]]
+      5:" universe"
       "
     `);
 
@@ -420,7 +425,7 @@ describe('rsc - createStreamableUI()', () => {
     expect(() => {
       ui.update(<div>3</div>);
     }).toThrowErrorMatchingInlineSnapshot(
-      '".update(): UI stream is already closed."',
+      '[Error: .update(): UI stream is already closed.]',
     );
   });
 
@@ -436,13 +441,44 @@ describe('rsc - createStreamableUI()', () => {
     ui.done();
 
     expect(await flightRender(ui.value)).toMatchInlineSnapshot(`
-      "1:\\"$Sreact.suspense\\"
-      2:D{\\"name\\":\\"\\",\\"env\\":\\"Server\\"}
-      0:[\\"$\\",\\"$1\\",null,{\\"fallback\\":[\\"$\\",\\"div\\",null,{\\"children\\":\\"1\\"}],\\"children\\":\\"$L2\\"}]
-      4:{\\"children\\":\\"1\\"}
-      3:[\\"$\\",\\"div\\",null,\\"$4\\"]
-      2:\\"$3\\"
+      "1:"$Sreact.suspense"
+      2:D{"name":"","env":"Server"}
+      0:["$","$1",null,{"fallback":["$","div",null,{"children":"1"}],"children":"$L2"}]
+      4:{"children":"1"}
+      3:["$","div",null,"$4"]
+      2:"$3"
       "
+    `);
+  });
+
+  it('should return self', async () => {
+    const ui = createStreamableUI(<div>1</div>)
+      .update(<div>2</div>)
+      .update(<div>3</div>)
+      .done(<div>4</div>);
+
+    expect(await flightRender(ui.value)).toMatchInlineSnapshot(`
+      "1:"$Sreact.suspense"
+      2:D{"name":"","env":"Server"}
+      0:["$","$1",null,{"fallback":["$","div",null,{"children":"1"}],"children":"$L2"}]
+      3:D{"name":"","env":"Server"}
+      2:["$","$1",null,{"fallback":["$","div",null,{"children":"2"}],"children":"$L3"}]
+      4:D{"name":"","env":"Server"}
+      3:["$","$1",null,{"fallback":["$","div",null,{"children":"3"}],"children":"$L4"}]
+      4:["$","div",null,{"children":"4"}]
+      "
+    `);
+  });
+});
+
+describe('rsc - createStreamableValue()', () => {
+  it('should return self', async () => {
+    const value = createStreamableValue(1).update(2).update(3).done(4);
+    expect(value.value).toMatchInlineSnapshot(`
+      {
+        "curr": 4,
+        "type": Symbol(ui.streamable.value),
+      }
     `);
   });
 });

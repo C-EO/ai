@@ -1,7 +1,7 @@
 import assert from 'node:assert';
 import { z } from 'zod';
 import { MockLanguageModelV1 } from '../test/mock-language-model-v1';
-import { experimental_generateText } from './generate-text';
+import { generateText } from './generate-text';
 
 const dummyResponseValues = {
   rawCall: { rawPrompt: 'prompt', rawSettings: {} },
@@ -11,10 +11,14 @@ const dummyResponseValues = {
 
 describe('result.text', () => {
   it('should generate text', async () => {
-    const result = await experimental_generateText({
+    const result = await generateText({
       model: new MockLanguageModelV1({
         doGenerate: async ({ prompt, mode }) => {
-          assert.deepStrictEqual(mode, { type: 'regular', tools: undefined });
+          assert.deepStrictEqual(mode, {
+            type: 'regular',
+            tools: undefined,
+            toolChoice: undefined,
+          });
           assert.deepStrictEqual(prompt, [
             { role: 'user', content: [{ type: 'text', text: 'prompt' }] },
           ]);
@@ -34,11 +38,12 @@ describe('result.text', () => {
 
 describe('result.toolCalls', () => {
   it('should contain tool calls', async () => {
-    const result = await experimental_generateText({
+    const result = await generateText({
       model: new MockLanguageModelV1({
         doGenerate: async ({ prompt, mode }) => {
           assert.deepStrictEqual(mode, {
             type: 'regular',
+            toolChoice: { type: 'required' },
             tools: [
               {
                 type: 'function',
@@ -92,6 +97,7 @@ describe('result.toolCalls', () => {
           parameters: z.object({ somethingElse: z.string() }),
         },
       },
+      toolChoice: 'required',
       prompt: 'test-input',
     });
 
@@ -113,11 +119,12 @@ describe('result.toolCalls', () => {
 
 describe('result.toolResults', () => {
   it('should contain tool results', async () => {
-    const result = await experimental_generateText({
+    const result = await generateText({
       model: new MockLanguageModelV1({
         doGenerate: async ({ prompt, mode }) => {
           assert.deepStrictEqual(mode, {
             type: 'regular',
+            toolChoice: { type: 'auto' },
             tools: [
               {
                 type: 'function',
@@ -175,5 +182,319 @@ describe('result.toolResults', () => {
         result: 'result1',
       },
     ]);
+  });
+});
+
+describe('result.responseMessages', () => {
+  it('should contain assistant response message when there are no tool calls', async () => {
+    const result = await generateText({
+      model: new MockLanguageModelV1({
+        doGenerate: async ({ prompt, mode }) => {
+          return {
+            ...dummyResponseValues,
+            text: 'Hello, world!',
+          };
+        },
+      }),
+      prompt: 'test-input',
+    });
+
+    assert.deepStrictEqual(result.responseMessages, [
+      { role: 'assistant', content: [{ type: 'text', text: 'Hello, world!' }] },
+    ]);
+  });
+
+  it('should contain assistant response message and tool message when there are tool calls with results', async () => {
+    const result = await generateText({
+      model: new MockLanguageModelV1({
+        doGenerate: async ({ prompt, mode }) => {
+          return {
+            ...dummyResponseValues,
+            text: 'Hello, world!',
+            toolCalls: [
+              {
+                toolCallType: 'function',
+                toolCallId: 'call-1',
+                toolName: 'tool1',
+                args: `{ "value": "value" }`,
+              },
+            ],
+            toolResults: [
+              {
+                toolCallId: 'call-1',
+                toolName: 'tool1',
+                args: { value: 'value' },
+                result: 'result1',
+              },
+            ],
+          };
+        },
+      }),
+      tools: {
+        tool1: {
+          parameters: z.object({ value: z.string() }),
+          execute: async args => {
+            assert.deepStrictEqual(args, { value: 'value' });
+            return 'result1';
+          },
+        },
+      },
+      prompt: 'test-input',
+    });
+
+    assert.deepStrictEqual(result.responseMessages, [
+      {
+        role: 'assistant',
+        content: [
+          { type: 'text', text: 'Hello, world!' },
+          {
+            type: 'tool-call',
+            toolCallId: 'call-1',
+            toolName: 'tool1',
+            args: { value: 'value' },
+          },
+        ],
+      },
+      {
+        role: 'tool',
+        content: [
+          {
+            type: 'tool-result',
+            toolCallId: 'call-1',
+            toolName: 'tool1',
+            result: 'result1',
+          },
+        ],
+      },
+    ]);
+  });
+
+  it('should contain assistant response message and tool message from all roundtrips', async () => {
+    let responseCount = 0;
+    const result = await generateText({
+      model: new MockLanguageModelV1({
+        doGenerate: async ({ prompt, mode }) => {
+          switch (responseCount++) {
+            case 0:
+              return {
+                ...dummyResponseValues,
+                toolCalls: [
+                  {
+                    toolCallType: 'function',
+                    toolCallId: 'call-1',
+                    toolName: 'tool1',
+                    args: `{ "value": "value" }`,
+                  },
+                ],
+                toolResults: [
+                  {
+                    toolCallId: 'call-1',
+                    toolName: 'tool1',
+                    args: { value: 'value' },
+                    result: 'result1',
+                  },
+                ],
+              };
+            case 1:
+              return {
+                ...dummyResponseValues,
+                text: 'Hello, world!',
+              };
+            default:
+              throw new Error(`Unexpected response count: ${responseCount}`);
+          }
+        },
+      }),
+      tools: {
+        tool1: {
+          parameters: z.object({ value: z.string() }),
+          execute: async args => {
+            assert.deepStrictEqual(args, { value: 'value' });
+            return 'result1';
+          },
+        },
+      },
+      prompt: 'test-input',
+      maxToolRoundtrips: 2,
+    });
+
+    assert.deepStrictEqual(result.responseMessages, [
+      {
+        role: 'assistant',
+        content: [
+          { type: 'text', text: '' },
+          {
+            type: 'tool-call',
+            toolCallId: 'call-1',
+            toolName: 'tool1',
+            args: { value: 'value' },
+          },
+        ],
+      },
+      {
+        role: 'tool',
+        content: [
+          {
+            type: 'tool-result',
+            toolCallId: 'call-1',
+            toolName: 'tool1',
+            result: 'result1',
+          },
+        ],
+      },
+      {
+        role: 'assistant',
+        content: [{ type: 'text', text: 'Hello, world!' }],
+      },
+    ]);
+  });
+});
+
+describe('options.maxToolRoundtrips', () => {
+  it('should return text, tool calls and tool results from last roundtrip', async () => {
+    let responseCount = 0;
+    const result = await generateText({
+      model: new MockLanguageModelV1({
+        doGenerate: async ({ prompt, mode }) => {
+          switch (responseCount++) {
+            case 0:
+              assert.deepStrictEqual(mode, {
+                type: 'regular',
+                toolChoice: { type: 'auto' },
+                tools: [
+                  {
+                    type: 'function',
+                    name: 'tool1',
+                    description: undefined,
+                    parameters: {
+                      $schema: 'http://json-schema.org/draft-07/schema#',
+                      additionalProperties: false,
+                      properties: { value: { type: 'string' } },
+                      required: ['value'],
+                      type: 'object',
+                    },
+                  },
+                ],
+              });
+              assert.deepStrictEqual(prompt, [
+                {
+                  role: 'user',
+                  content: [{ type: 'text', text: 'test-input' }],
+                },
+              ]);
+              return {
+                ...dummyResponseValues,
+                toolCalls: [
+                  {
+                    toolCallType: 'function',
+                    toolCallId: 'call-1',
+                    toolName: 'tool1',
+                    args: `{ "value": "value" }`,
+                  },
+                ],
+                toolResults: [
+                  {
+                    toolCallId: 'call-1',
+                    toolName: 'tool1',
+                    args: { value: 'value' },
+                    result: 'result1',
+                  },
+                ],
+              };
+            case 1:
+              assert.deepStrictEqual(mode, {
+                type: 'regular',
+                toolChoice: { type: 'auto' },
+                tools: [
+                  {
+                    type: 'function',
+                    name: 'tool1',
+                    description: undefined,
+                    parameters: {
+                      $schema: 'http://json-schema.org/draft-07/schema#',
+                      additionalProperties: false,
+                      properties: { value: { type: 'string' } },
+                      required: ['value'],
+                      type: 'object',
+                    },
+                  },
+                ],
+              });
+              assert.deepStrictEqual(prompt, [
+                {
+                  role: 'user',
+                  content: [{ type: 'text', text: 'test-input' }],
+                },
+                {
+                  role: 'assistant',
+                  content: [
+                    {
+                      type: 'tool-call',
+                      toolCallId: 'call-1',
+                      toolName: 'tool1',
+                      args: { value: 'value' },
+                    },
+                  ],
+                },
+                {
+                  role: 'tool',
+                  content: [
+                    {
+                      type: 'tool-result',
+                      toolCallId: 'call-1',
+                      toolName: 'tool1',
+                      result: 'result1',
+                    },
+                  ],
+                },
+              ]);
+              return {
+                ...dummyResponseValues,
+                text: 'Hello, world!',
+              };
+            default:
+              throw new Error(`Unexpected response count: ${responseCount}`);
+          }
+        },
+      }),
+      tools: {
+        tool1: {
+          parameters: z.object({ value: z.string() }),
+          execute: async args => {
+            assert.deepStrictEqual(args, { value: 'value' });
+            return 'result1';
+          },
+        },
+      },
+      prompt: 'test-input',
+      maxToolRoundtrips: 2,
+    });
+
+    assert.deepStrictEqual(result.text, 'Hello, world!');
+    assert.deepStrictEqual(result.toolCalls, []);
+    assert.deepStrictEqual(result.toolResults, []);
+  });
+});
+
+describe('options.headers', () => {
+  it('should pass headers to model', async () => {
+    const result = await generateText({
+      model: new MockLanguageModelV1({
+        doGenerate: async ({ headers }) => {
+          assert.deepStrictEqual(headers, {
+            'custom-request-header': 'request-header-value',
+          });
+
+          return {
+            ...dummyResponseValues,
+            text: 'Hello, world!',
+          };
+        },
+      }),
+      prompt: 'test-input',
+      headers: { 'custom-request-header': 'request-header-value' },
+    });
+
+    assert.deepStrictEqual(result.text, 'Hello, world!');
   });
 });

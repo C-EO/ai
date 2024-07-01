@@ -4,6 +4,7 @@ import { SetupServer, setupServer } from 'msw/node';
 export class StreamingTestServer {
   readonly server: SetupServer;
 
+  responseHeaders: Record<string, string> = {};
   responseChunks: any[] = [];
 
   request: Request | undefined;
@@ -34,6 +35,7 @@ export class StreamingTestServer {
             'Content-Type': 'text/event-stream',
             'Cache-Control': 'no-cache',
             Connection: 'keep-alive',
+            ...this.responseHeaders,
           },
         });
       }),
@@ -47,7 +49,20 @@ export class StreamingTestServer {
 
   async getRequestHeaders() {
     expect(this.request).toBeDefined();
-    return this.request!.headers;
+    const requestHeaders = this.request!.headers;
+
+    // convert headers to object for easier comparison
+    const headersObject: Record<string, string> = {};
+    requestHeaders.forEach((value, key) => {
+      headersObject[key] = value;
+    });
+
+    return headersObject;
+  }
+
+  async getRequestUrlSearchParams() {
+    expect(this.request).toBeDefined();
+    return new URL(this.request!.url).searchParams;
   }
 
   setupTestEnvironment() {

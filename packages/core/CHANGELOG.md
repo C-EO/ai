@@ -1,5 +1,548 @@
 # ai
 
+## 3.2.16
+
+### Patch Changes
+
+- Updated dependencies [3f756a6b]
+  - @ai-sdk/react@0.0.16
+
+## 3.2.15
+
+### Patch Changes
+
+- 6c99581e: fix (ai/react): stop() on useObject does not throw error and clears isLoading
+- Updated dependencies [6c99581e]
+  - @ai-sdk/react@0.0.15
+
+## 3.2.14
+
+### Patch Changes
+
+- Updated dependencies [9b50003d]
+- Updated dependencies [1894f811]
+  - @ai-sdk/react@0.0.14
+  - @ai-sdk/ui-utils@0.0.9
+  - @ai-sdk/solid@0.0.11
+  - @ai-sdk/svelte@0.0.12
+  - @ai-sdk/vue@0.0.11
+
+## 3.2.13
+
+### Patch Changes
+
+- d3100b9c: feat (ai/ui): support custom fetch function in useChat, useCompletion, useAssistant, useObject
+- Updated dependencies [d3100b9c]
+  - @ai-sdk/ui-utils@0.0.8
+  - @ai-sdk/svelte@0.0.11
+  - @ai-sdk/react@0.0.13
+  - @ai-sdk/solid@0.0.10
+  - @ai-sdk/vue@0.0.10
+
+## 3.2.12
+
+### Patch Changes
+
+- 5edc6110: feat (ai/core): add custom request header support
+- Updated dependencies [5edc6110]
+- Updated dependencies [5edc6110]
+- Updated dependencies [5edc6110]
+  - @ai-sdk/provider@0.0.11
+  - @ai-sdk/provider-utils@1.0.0
+  - @ai-sdk/react@0.0.12
+  - @ai-sdk/svelte@0.0.10
+  - @ai-sdk/ui-utils@0.0.7
+  - @ai-sdk/solid@0.0.9
+  - @ai-sdk/vue@0.0.9
+
+## 3.2.11
+
+### Patch Changes
+
+- c908f741: chore (ui/solid): update solidjs useChat and useCompletion to feature parity with React
+- 827ef450: feat (ai/ui): improve error handling in useAssistant
+- Updated dependencies [c908f741]
+- Updated dependencies [827ef450]
+  - @ai-sdk/solid@0.0.8
+  - @ai-sdk/svelte@0.0.9
+  - @ai-sdk/react@0.0.11
+
+## 3.2.10
+
+### Patch Changes
+
+- Updated dependencies [5b04204b]
+- Updated dependencies [8f482903]
+  - @ai-sdk/react@0.0.10
+
+## 3.2.9
+
+### Patch Changes
+
+- 82d9c8de: feat (ai/ui): make event in useAssistant submitMessage optional
+- Updated dependencies [82d9c8de]
+- Updated dependencies [321a7d0e]
+- Updated dependencies [82d9c8de]
+  - @ai-sdk/svelte@0.0.8
+  - @ai-sdk/react@0.0.9
+  - @ai-sdk/vue@0.0.8
+
+## 3.2.8
+
+### Patch Changes
+
+- 54bf4083: feat (ai/react): control request body in useChat
+- Updated dependencies [54bf4083]
+  - @ai-sdk/ui-utils@0.0.6
+  - @ai-sdk/react@0.0.8
+  - @ai-sdk/solid@0.0.7
+  - @ai-sdk/svelte@0.0.7
+  - @ai-sdk/vue@0.0.7
+
+## 3.2.7
+
+### Patch Changes
+
+- d42b8907: feat (ui): make event in handleSubmit optional
+- Updated dependencies [d42b8907]
+  - @ai-sdk/svelte@0.0.6
+  - @ai-sdk/react@0.0.7
+  - @ai-sdk/solid@0.0.6
+  - @ai-sdk/vue@0.0.6
+
+## 3.2.6
+
+### Patch Changes
+
+- 74e28222: fix (ai/rsc): "could not find InternalStreamableUIClient" bug
+
+## 3.2.5
+
+### Patch Changes
+
+- 4d426d0c: fix (ai): split provider and model ids correctly in the provider registry
+
+## 3.2.4
+
+### Patch Changes
+
+- Updated dependencies [3cb103bc]
+  - @ai-sdk/react@0.0.6
+
+## 3.2.3
+
+### Patch Changes
+
+- 89b7552b: chore (ai): remove deprecation from ai/react imports, add experimental_useObject
+- Updated dependencies [02f6a088]
+  - @ai-sdk/provider-utils@0.0.16
+  - @ai-sdk/react@0.0.5
+  - @ai-sdk/svelte@0.0.5
+  - @ai-sdk/ui-utils@0.0.5
+  - @ai-sdk/solid@0.0.5
+  - @ai-sdk/vue@0.0.5
+
+## 3.2.2
+
+### Patch Changes
+
+- 0565cd72: feat (ai/core): add toJsonResponse to generateObject result.
+
+## 3.2.1
+
+### Patch Changes
+
+- 008725ec: feat (ai): add textStream, toTextStreamResponse(), and pipeTextStreamToResponse() to streamObject
+- 520fb2d5: feat (rsc): add streamUI onFinish callback
+- Updated dependencies [008725ec]
+- Updated dependencies [008725ec]
+  - @ai-sdk/react@0.0.4
+  - @ai-sdk/ui-utils@0.0.4
+  - @ai-sdk/solid@0.0.4
+  - @ai-sdk/svelte@0.0.4
+  - @ai-sdk/vue@0.0.4
+
+## 3.2.0
+
+### Minor Changes
+
+- 85ef6d18: chore (ai): AI SDK 3.2 release
+
+### Patch Changes
+
+- b965dd2d: fix (core): pass settings correctly for generateObject and streamObject
+
+## 3.1.37
+
+### Patch Changes
+
+- 85712895: chore (@ai-sdk/provider-utils): move test helper to provider utils
+- Updated dependencies [85712895]
+- Updated dependencies [85712895]
+  - @ai-sdk/provider-utils@0.0.15
+  - @ai-sdk/react@0.0.3
+  - @ai-sdk/svelte@0.0.3
+  - @ai-sdk/ui-utils@0.0.3
+  - @ai-sdk/solid@0.0.3
+  - @ai-sdk/vue@0.0.3
+
+## 3.1.36
+
+### Patch Changes
+
+- 4728c37f: feat (core): add text embedding model support to provider registry
+- 8c49166e: chore (core): rename experimental_createModelRegistry to experimental_createProviderRegistry
+- Updated dependencies [7910ae84]
+  - @ai-sdk/provider-utils@0.0.14
+  - @ai-sdk/react@0.0.2
+  - @ai-sdk/svelte@0.0.2
+  - @ai-sdk/ui-utils@0.0.2
+  - @ai-sdk/solid@0.0.2
+  - @ai-sdk/vue@0.0.2
+
+## 3.1.35
+
+### Patch Changes
+
+- 06123501: feat (core): support https and data url strings in image parts
+
+## 3.1.34
+
+### Patch Changes
+
+- d25566ac: feat (core): add cosineSimilarity helper function
+- 87a5d27e: feat (core): introduce InvalidMessageRoleError.
+
+## 3.1.33
+
+### Patch Changes
+
+- 6fb14b5d: chore (streams): deprecate nanoid export.
+- 05536768: feat (core): add experimental model registry
+
+## 3.1.32
+
+### Patch Changes
+
+- 3cabf078: fix(ai/rsc): Refactor streamable UI internal implementation
+
+## 3.1.31
+
+### Patch Changes
+
+- 85f209a4: chore: extracted ui library support into separate modules
+- 85f209a4: removed (streams): experimental_StreamingReactResponse was removed. Please use AI SDK RSC instead.
+- Updated dependencies [85f209a4]
+  - @ai-sdk/ui-utils@0.0.1
+  - @ai-sdk/svelte@0.0.1
+  - @ai-sdk/react@0.0.1
+  - @ai-sdk/solid@0.0.1
+  - @ai-sdk/vue@0.0.1
+
+## 3.1.30
+
+### Patch Changes
+
+- fcf4323b: fix (core): filter out empty assistant text messages
+
+## 3.1.29
+
+### Patch Changes
+
+- 28427d3e: feat (core): add streamObject onFinish callback
+
+## 3.1.28
+
+### Patch Changes
+
+- 102ca22f: feat (core): add object promise to streamObject result
+- Updated dependencies [102ca22f]
+  - @ai-sdk/provider@0.0.10
+  - @ai-sdk/provider-utils@0.0.13
+
+## 3.1.27
+
+### Patch Changes
+
+- c9198d4d: feat (ui): send annotation and data fields in useChat when sendExtraMessageFields is true
+- Updated dependencies [09295e2e]
+- Updated dependencies [09295e2e]
+- Updated dependencies [043a5de2]
+  - @ai-sdk/provider@0.0.9
+  - @ai-sdk/provider-utils@0.0.12
+
+## 3.1.26
+
+### Patch Changes
+
+- 5ee44cae: feat (provider): langchain StringOutputParser support
+
+## 3.1.25
+
+### Patch Changes
+
+- ff281126: fix(ai/rsc): Remove extra reconcilation of streamUI
+
+## 3.1.24
+
+### Patch Changes
+
+- 93cae126: fix(ai/rsc): Fix unsafe {} type in application code for StreamableValue
+- 08b5c509: feat (core): add tokenUsage to streamObject result
+
+## 3.1.23
+
+### Patch Changes
+
+- c03cafe6: chore (core, ui): rename maxAutomaticRoundtrips to maxToolRoundtrips
+
+## 3.1.22
+
+### Patch Changes
+
+- 14bb8694: chore (ui): move maxAutomaticRoundtrips and addToolResult out of experimental
+
+## 3.1.21
+
+### Patch Changes
+
+- 213f2411: fix (core,streams): support ResponseInit variants
+- 09698bca: chore (streams): deprecate streaming helpers that have a provider replacement
+
+## 3.1.20
+
+### Patch Changes
+
+- 0e1da476: feat (core): add maxAutomaticRoundtrips setting to generateText
+
+## 3.1.19
+
+### Patch Changes
+
+- 9882d24b: fix (ui/svelte): send data to server
+- 131bbd3e: fix (ui): remove console.log statements
+
+## 3.1.18
+
+### Patch Changes
+
+- f9dee8ac: fix(ai/rsc): Fix types for createStreamableValue and createStreamableUI
+- 1c0ebf8e: feat (core): add responseMessages to generateText result
+
+## 3.1.17
+
+### Patch Changes
+
+- 92b993b7: ai/rsc: improve getAIState and getMutableAIState types
+- 7de628e9: chore (ui): deprecate old function/tool call handling
+- 7de628e9: feat (ui): add onToolCall handler to useChat
+
+## 3.1.16
+
+### Patch Changes
+
+- f39c0dd2: feat (core, rsc): add toolChoice setting
+- Updated dependencies [f39c0dd2]
+  - @ai-sdk/provider@0.0.8
+  - @ai-sdk/provider-utils@0.0.11
+
+## 3.1.15
+
+### Patch Changes
+
+- 8e780288: feat (ai/core): add onFinish callback to streamText
+- 8e780288: feat (ai/core): add text, toolCalls, and toolResults promises to StreamTextResult (matching the generateText result API with async methods)
+- Updated dependencies [8e780288]
+  - @ai-sdk/provider@0.0.7
+  - @ai-sdk/provider-utils@0.0.10
+
+## 3.1.14
+
+### Patch Changes
+
+- 6109c6a: feat (ai/react): add experimental_maxAutomaticRoundtrips to useChat
+
+## 3.1.13
+
+### Patch Changes
+
+- 60117c9: dependencies (ai/ui): add React 18.3 and 19 support (peer dependency)
+- Updated dependencies [6a50ac4]
+- Updated dependencies [6a50ac4]
+  - @ai-sdk/provider@0.0.6
+  - @ai-sdk/provider-utils@0.0.9
+
+## 3.1.12
+
+### Patch Changes
+
+- ae05fb7: feat (ai/streams): add StreamData support to streamToResponse
+
+## 3.1.11
+
+### Patch Changes
+
+- a085d42: fix (ai/ui): decouple StreamData chunks from LLM stream
+
+## 3.1.10
+
+### Patch Changes
+
+- 3a21030: feat (ai/core): add embedMany function
+
+## 3.1.9
+
+### Patch Changes
+
+- 18a9655: feat (ai/svelte): add useAssistant
+
+## 3.1.8
+
+### Patch Changes
+
+- 0f6bc4e: feat (ai/core): add embed function
+- Updated dependencies [0f6bc4e]
+  - @ai-sdk/provider@0.0.5
+  - @ai-sdk/provider-utils@0.0.8
+
+## 3.1.7
+
+### Patch Changes
+
+- f617b97: feat (ai): support client/server tool calls with useChat and streamText
+
+## 3.1.6
+
+### Patch Changes
+
+- 2e78acb: Deprecate StreamingReactResponse (use AI SDK RSC instead).
+- 8439884: ai/rsc: make RSC streamable utils chainable
+- 325ca55: feat (ai/core): improve image content part error message
+- Updated dependencies [325ca55]
+  - @ai-sdk/provider@0.0.4
+  - @ai-sdk/provider-utils@0.0.7
+
+## 3.1.5
+
+### Patch Changes
+
+- 5b01c13: feat (ai/core): add system message support in messages list
+
+## 3.1.4
+
+### Patch Changes
+
+- ceb44bc: feat (ai/ui): add stop() helper to useAssistant (important: AssistantResponse now requires OpenAI SDK 4.42+)
+- 37c9d4c: feat (ai/streams): add LangChainAdapter.toAIStream()
+
+## 3.1.3
+
+### Patch Changes
+
+- 970a099: fix (ai/core): streamObject fixes partial json with empty objects correctly
+- 1ac2390: feat (ai/core): add usage and finishReason to streamText result.
+- Updated dependencies [276f22b]
+  - @ai-sdk/provider-utils@0.0.6
+
+## 3.1.2
+
+### Patch Changes
+
+- d1b1880: fix (ai/core): allow reading streams in streamText result multiple times
+
+## 3.1.1
+
+### Patch Changes
+
+- 0f77132: ai/rsc: remove experimental\_ from streamUI
+
+## 3.1.0
+
+### Minor Changes
+
+- 73356a9: Move AI Core functions out of experimental (streamText, generateText, streamObject, generateObject).
+
+## 3.0.35
+
+### Patch Changes
+
+- 41d5736: ai/core: re-expose language model types.
+- b4c68ec: ai/rsc: ReadableStream as provider for createStreamableValue; add .append() method
+- Updated dependencies [41d5736]
+  - @ai-sdk/provider@0.0.3
+  - @ai-sdk/provider-utils@0.0.5
+
+## 3.0.34
+
+### Patch Changes
+
+- b9a831e: ai/rsc: add experimental_streamUI()
+
+## 3.0.33
+
+### Patch Changes
+
+- 56ef84a: ai/core: fix abort handling in transformation stream
+- Updated dependencies [56ef84a]
+  - @ai-sdk/provider-utils@0.0.4
+
+## 3.0.32
+
+### Patch Changes
+
+- 0e0d2af: ai/core: add pipeTextStreamToResponse helper to streamText.
+
+## 3.0.31
+
+### Patch Changes
+
+- 74c63b1: ai/core: add toAIStreamResponse() helper to streamText.
+
+## 3.0.30
+
+### Patch Changes
+
+- e7e5898: use-assistant: fix missing message content
+
+## 3.0.29
+
+### Patch Changes
+
+- 22a737e: Fix: mark useAssistant as in progress for append/submitMessage.
+
+## 3.0.28
+
+### Patch Changes
+
+- d6431ae: ai/core: add logprobs support (thanks @SamStenner for the contribution)
+- 25f3350: ai/core: add support for getting raw response headers.
+- Updated dependencies [d6431ae]
+- Updated dependencies [25f3350]
+  - @ai-sdk/provider@0.0.2
+  - @ai-sdk/provider-utils@0.0.3
+
+## 3.0.27
+
+### Patch Changes
+
+- eb150a6: ai/core: remove scaling of setting values (breaking change). If you were using the temperature, frequency penalty, or presence penalty settings, you need to update the providers and adjust the setting values.
+- Updated dependencies [eb150a6]
+  - @ai-sdk/provider-utils@0.0.2
+  - @ai-sdk/provider@0.0.1
+
+## 3.0.26
+
+### Patch Changes
+
+- f90f6a1: ai/core: add pipeAIStreamToResponse() to streamText result.
+
+## 3.0.25
+
+### Patch Changes
+
+- 1e84d6d: Fix: remove mistral lib type dependency.
+- 9c2a049: Add append() helper to useAssistant.
+
 ## 3.0.24
 
 ### Patch Changes
