@@ -1,5 +1,30 @@
 # ai
 
+## 3.4.17
+
+### Patch Changes
+
+- e4ff512: fix (core): prevent unnecessary input/output serialization when telemetry is not enabled
+
+## 3.4.16
+
+### Patch Changes
+
+- 01dcc44: feat (ai/core): add experimental activeTools option to generateText and streamText
+
+## 3.4.15
+
+### Patch Changes
+
+- Updated dependencies [98a3b08]
+  - @ai-sdk/react@0.0.64
+
+## 3.4.14
+
+### Patch Changes
+
+- e930f40: feat (ai/core): expose core tool result and tool call types
+
 ## 3.4.13
 
 ### Patch Changes

@@ -11,7 +11,7 @@ import {
 import { prepareCallSettings } from '../prompt/prepare-call-settings';
 import { prepareToolsAndToolChoice } from '../prompt/prepare-tools-and-tool-choice';
 import { Prompt } from '../prompt/prompt';
-import { validatePrompt } from '../prompt/validate-prompt';
+import { standardizePrompt } from '../prompt/standardize-prompt';
 import { assembleOperationName } from '../telemetry/assemble-operation-name';
 import { getBaseTelemetryAttributes } from '../telemetry/get-base-telemetry-attributes';
 import { getTracer } from '../telemetry/get-tracer';
@@ -29,8 +29,8 @@ import { GenerateTextResult } from './generate-text-result';
 import { parseToolCall } from './parse-tool-call';
 import { StepResult } from './step-result';
 import { toResponseMessages } from './to-response-messages';
-import { ToToolCallArray } from './tool-call';
-import { ToToolResultArray } from './tool-result';
+import { ToolCallArray } from './tool-call';
+import { ToolResultArray } from './tool-result';
 
 const originalGenerateId = createIdGenerator({ prefix: 'aitxt-', size: 24 });
 
@@ -98,6 +98,7 @@ export async function generateText<TOOLS extends Record<string, CoreTool>>({
     false,
   experimental_telemetry: telemetry,
   experimental_providerMetadata: providerMetadata,
+  experimental_activeTools: activeTools,
   _internal: {
     generateId = originalGenerateId,
     currentDate = () => new Date(),
@@ -176,6 +177,12 @@ functionality that can be fully encapsulated in the provider.
     experimental_providerMetadata?: ProviderMetadata;
 
     /**
+Limits the tools that are available for the model to call without
+changing the tool call and result types in the result.
+     */
+    experimental_activeTools?: Array<keyof TOOLS>;
+
+    /**
     Callback that is called when each step (LLM call) is finished, including intermediate steps.
     */
     onStepFinish?: (event: StepResult<TOOLS>) => Promise<void> | void;
@@ -225,27 +232,21 @@ functionality that can be fully encapsulated in the provider.
     tracer,
     fn: async span => {
       const retry = retryWithExponentialBackoff({ maxRetries });
-      const validatedPrompt = validatePrompt({
-        system,
-        prompt,
-        messages,
-      });
+
+      const currentPrompt = standardizePrompt({ system, prompt, messages });
 
       const mode = {
         type: 'regular' as const,
-        ...prepareToolsAndToolChoice({ tools, toolChoice }),
+        ...prepareToolsAndToolChoice({ tools, toolChoice, activeTools }),
       };
+
       const callSettings = prepareCallSettings(settings);
-      const promptMessages = await convertToLanguageModelPrompt({
-        prompt: validatedPrompt,
-        modelSupportsImageUrls: model.supportsImageUrls,
-      });
 
       let currentModelResponse: Awaited<
         ReturnType<LanguageModel['doGenerate']>
       > & { response: { id: string; timestamp: Date; modelId: string } };
-      let currentToolCalls: ToToolCallArray<TOOLS> = [];
-      let currentToolResults: ToToolResultArray<TOOLS> = [];
+      let currentToolCalls: ToolCallArray<TOOLS> = [];
+      let currentToolResults: ToolResultArray<TOOLS> = [];
       let stepCount = 0;
       const responseMessages: Array<CoreAssistantMessage | CoreToolMessage> =
         [];
@@ -261,8 +262,14 @@ functionality that can be fully encapsulated in the provider.
 
       do {
         // once we have a 2nd step, we need to switch to messages format:
-        const currentInputFormat =
-          stepCount === 0 ? validatedPrompt.type : 'messages';
+        if (stepCount === 1) {
+          currentPrompt.type = 'messages';
+        }
+
+        const promptMessages = await convertToLanguageModelPrompt({
+          prompt: currentPrompt,
+          modelSupportsImageUrls: model.supportsImageUrls,
+        });
 
         currentModelResponse = await retry(() =>
           recordSpan({
@@ -275,7 +282,7 @@ functionality that can be fully encapsulated in the provider.
                   telemetry,
                 }),
                 ...baseTelemetryAttributes,
-                'ai.prompt.format': { input: () => currentInputFormat },
+                'ai.prompt.format': { input: () => currentPrompt.type },
                 'ai.prompt.messages': {
                   input: () => JSON.stringify(promptMessages),
                 },
@@ -297,7 +304,7 @@ functionality that can be fully encapsulated in the provider.
               const result = await model.doGenerate({
                 mode,
                 ...callSettings,
-                inputFormat: currentInputFormat,
+                inputFormat: currentPrompt.type,
                 prompt: promptMessages,
                 providerMetadata,
                 abortSignal,
@@ -437,22 +444,24 @@ functionality that can be fully encapsulated in the provider.
           // continue step: update the last assistant message
           // continue is only possible when there are no tool calls,
           // so we can assume that there is a single last assistant message:
-          const lastResponseMessage =
-            responseMessages.pop() as CoreAssistantMessage;
-          promptMessages.pop();
-          if (typeof lastResponseMessage.content === 'string') {
-            lastResponseMessage.content = text;
+          const lastMessage = currentPrompt.messages[
+            currentPrompt.messages.length - 1
+          ] as CoreAssistantMessage;
+
+          if (typeof lastMessage.content === 'string') {
+            lastMessage.content = text;
           } else {
-            lastResponseMessage.content.push({
+            lastMessage.content.push({
               text: stepText,
               type: 'text',
             });
           }
-          responseMessages.push(lastResponseMessage);
-          promptMessages.push(
-            convertToLanguageModelMessage(lastResponseMessage, null),
-          );
-        } else if (nextStepType === 'continue') {
+
+          // update the last message in the prompt:
+          responseMessages[responseMessages.length - 1] = lastMessage;
+          currentPrompt.messages[currentPrompt.messages.length - 1] =
+            lastMessage;
+        } else {
           const newResponseMessages = toResponseMessages({
             text,
             toolCalls: currentToolCalls,
@@ -460,25 +469,7 @@ functionality that can be fully encapsulated in the provider.
           });
 
           responseMessages.push(...newResponseMessages);
-          promptMessages.push(
-            ...newResponseMessages.map(message =>
-              convertToLanguageModelMessage(message, null),
-            ),
-          );
-        } else {
-          // next step is either done or tool-result:
-          const newResponseMessages = toResponseMessages({
-            text: currentModelResponse.text,
-            toolCalls: currentToolCalls,
-            toolResults: currentToolResults,
-          });
-
-          responseMessages.push(...newResponseMessages);
-          promptMessages.push(
-            ...newResponseMessages.map(message =>
-              convertToLanguageModelMessage(message, null),
-            ),
-          );
+          currentPrompt.messages.push(...newResponseMessages);
         }
 
         stepType = nextStepType;
@@ -540,12 +531,12 @@ async function executeTools<TOOLS extends Record<string, CoreTool>>({
   telemetry,
   abortSignal,
 }: {
-  toolCalls: ToToolCallArray<TOOLS>;
+  toolCalls: ToolCallArray<TOOLS>;
   tools: TOOLS;
   tracer: Tracer;
   telemetry: TelemetrySettings | undefined;
   abortSignal: AbortSignal | undefined;
-}): Promise<ToToolResultArray<TOOLS>> {
+}): Promise<ToolResultArray<TOOLS>> {
   const toolResults = await Promise.all(
     toolCalls.map(async toolCall => {
       const tool = tools[toolCall.toolName];
@@ -601,7 +592,7 @@ async function executeTools<TOOLS extends Record<string, CoreTool>>({
         toolName: toolCall.toolName,
         args: toolCall.args,
         result,
-      } as ToToolResultArray<TOOLS>[number];
+      } as ToolResultArray<TOOLS>[number];
     }),
   );
 
